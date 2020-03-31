@@ -7,6 +7,7 @@ const App = () => {
   
   const [selectedTeamId, setSelectedTeamId] = useState(null)
   const [selectedTeam, setSelectedTeam] = useState(null)
+  const [teamList, setTeamList] = useState(null)
   const [schedule, setSchedule] = useState(null)
 
   useEffect(() => {
@@ -27,15 +28,30 @@ const App = () => {
     }
   }, [selectedTeamId])
 
+  useEffect(() => {
+    fetch("http://localhost:2200/teams")
+      .then((response) => { return response.json() })
+      .then((data) => { setTeamList(data.results) })
+  }, [])
+
+  function handleGameScheduled(newGame) {
+    setSchedule(schedule.concat([newGame]))
+  }
+
   return (  
     <div id="app">
-      <GameList games={schedule} selectedTeam={selectedTeam} onTeamClick={selectTeam}/>
+      <GameList 
+        games={schedule} 
+        teams={teamList} 
+        selectedTeam={selectedTeam} 
+        onTeamClick={selectTeam}
+        onGameScheduled={handleGameScheduled}/>
       <Team team={selectedTeam} />
     </div>
   )
 }
 
-const GameList = ({games, selectedTeam, onTeamClick}) => {
+const GameList = ({games, teams, selectedTeam, onTeamClick, onGameScheduled}) => {
   if ( games ) {
     return (
       <table className="games">
@@ -50,6 +66,9 @@ const GameList = ({games, selectedTeam, onTeamClick}) => {
         <tbody>
           { games.map(g => <Game key={g.id} game={g} selectedTeam={selectedTeam} onTeamClick={onTeamClick} /> ) }
         </tbody>
+        <tfoot>
+          <NewGameInput teams={teams} onGameScheduled={onGameScheduled}/>
+        </tfoot>
       </table>
     )
   } else {
@@ -97,6 +116,95 @@ const Team = ({team}) => {
   } else {
     return null
   }
+}
+
+const NewGameInput = ({teams, onGameScheduled}) => {
+
+  const [isSchedulable, setIsSchedulable] = useState(false)
+  const [disabledTeam2, setDisabledTeam2] = useState("")
+  const [team1Option, setTeam1Option] = useState(null)
+  const [team2Option, setTeam2Option] = useState(null)
+  const [date, setDate] = useState("")
+  const [time, setTime] = useState("")
+
+  function handleTeam1Change(e) {
+    setDisabledTeam2(e.target.value)
+    setTeam1Option(e.target.options[e.target.selectedIndex])
+  }
+
+  useEffect(() => {
+    if ( team1Option && team2Option && date && time ) {
+      setIsSchedulable(true)
+    } else {
+      setIsSchedulable(false)
+    }
+  }, [team1Option, team2Option, date, time])
+
+  function scheduleGame() {
+    const newGameData = { 
+      start_time: date + " " + time, 
+      game_over: false,
+      winning_team_id: null,
+      team1: {
+        id: parseInt(team1Option.value),
+        name: team1Option.text,
+      },
+      team2: {
+        id: parseInt(team2Option.value),
+        name: team2Option.text,
+      }
+    }
+    fetch("http://localhost:2200/game", { 
+        method: "POST", 
+        body: JSON.stringify(newGameData)
+      })
+      .then((response) => response.json())
+      .then((data) => {
+        newGameData.id = data.results.id
+        onGameScheduled(newGameData)
+      })
+  }
+
+  if ( teams ) {
+    return (
+      <tr>
+        <td>
+          <input 
+            type="date" 
+            onChange={(e) => setDate(e.target.value)} />
+          <input 
+            type="time"
+            onChange={(e) => setTime(e.target.value)} />
+        </td>
+        <td>
+          <TeamList 
+            teams={teams}
+            selectedValue={team1Option ? team1Option.value : ""}
+            onChange={handleTeam1Change} /></td>
+        <td>vs</td>
+        <td>
+          <TeamList 
+            teams={teams} 
+            selectedValue={team2Option ? team2Option.value : ""}
+            onChange={(e) => { setTeam2Option(e.target.options[e.target.selectedIndex]) }} 
+            disabledOption={disabledTeam2} />
+        </td>
+        <td><button disabled={!isSchedulable} onClick={scheduleGame}>Schedule Game</button></td>
+      </tr>
+    )
+  } else {
+    return null
+  }
+}
+
+const TeamList = ({teams, selectedValue, onChange, disabledOption}) => {
+
+  return (
+    <select onChange={onChange} value={selectedValue === disabledOption ? "" : selectedValue}>
+      <option></option>
+      { teams.map( t => <option key={t.id} value={t.id} disabled={disabledOption === ""+t.id}>{t.name}</option> ) }
+    </select>
+  )
 }
 
 export default App;
