@@ -8,4 +8,6 @@ In the project directory, run:
 
 ## Run the front-end on a local server
 
+In the project directory, run:
+
 `npm start`
